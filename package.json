@@ -1,0 +1,21 @@
+{
+  "name": "log-monitoring-dashboard",
+  "version": "1.0.0",
+  "description": "Linux auth log monitoring and spike detection dashboard for Splunk",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "generate-logs": "python3 scripts/generate_auth_logs.py sample_data/auth.log"
+  },
+  "keywords": [
+    "splunk",
+    "log-monitoring",
+    "soc",
+    "linux-auth",
+    "dashboard",
+    "siem"
+  ],
+  "author": "Aditya",
+  "license": "MIT"
+}

@@ -1,0 +1,232 @@
+<form stylesheet="custom_dashboard.css">
+  <label>Linux Auth Security: Failed-Login Spike &amp; Threat Detection</label>
+  <description>Real-time visual monitoring of Linux PAM/SSHD authentication failures, brute-force spike anomaly detection, and attacker profiling.</description>
+
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_range">
+      <label>Time Window</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="selected_host">
+      <label>Target Server</label>
+      <choice value="*">All Hosts</choice>
+      <default>*</default>
+      <fieldForLabel>host</fieldForLabel>
+      <fieldForValue>host</fieldForValue>
+      <search>
+        <query>index=os_security sourcetype=linux_secure | stats count by host</query>
+        <earliest>-7d</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="text" token="user_filter">
+      <label>User Filter (Wildcard)</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <html>
+        <div class="soc-banner-panel">
+          <div>
+            <div class="soc-banner-title">
+              <span>Security Operations Center &bull; Authentication Monitoring</span>
+            </div>
+            <div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">
+              Surveillance of SSH daemon logins, PAM auth failures, and credential stuffing spikes.
+            </div>
+          </div>
+          <div class="soc-live-badge">
+            <span class="soc-live-pulse"></span>
+            ACTIVE MONITORING
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <single>
+        <title>Total Failed Logins</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | stats count
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["#10b981","#f59e0b","#ef4444"]</option>
+        <option name="rangeValues">[50,300]</option>
+        <option name="useColors">1</option>
+        <option name="underLabel">Failed authentication events</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Unique Attacker IPs</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | stats dc(src_ip) as distinct_ips
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">none</option>
+        <option name="rangeColors">["#3b82f6","#ef4444"]</option>
+        <option name="rangeValues">[10]</option>
+        <option name="useColors">1</option>
+        <option name="underLabel">Distinct source addresses</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Max Spike Rate (/15 min)</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | timechart span=15m count
+            | stats max(count) as peak_rate
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">none</option>
+        <option name="rangeColors">["#10b981","#ef4444"]</option>
+        <option name="rangeValues">[100]</option>
+        <option name="useColors">1</option>
+        <option name="underLabel">Peak failure volume</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Invalid User Attack %</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | eval is_invalid = if(match(_raw, "invalid user"), 1, 0)
+            | stats sum(is_invalid) as invalid_count, count as total
+            | eval pct = round((invalid_count/total)*100, 1)
+            | fields pct
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="numberPrecision">1</option>
+        <option name="unit">%</option>
+        <option name="underLabel">Dictionary enumeration ratio</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <chart>
+        <title>Failed-Login Spikes &amp; Anomaly Baseline (Timechart with Dynamic Threshold)</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | timechart span=15m count as Failed_Attempts
+            | streamstats window=8 avg(Failed_Attempts) as Baseline_Mean, stdev(Failed_Attempts) as Baseline_Stdev
+            | eval Spike_Threshold = round(Baseline_Mean + (2.5 * Baseline_Stdev), 1)
+            | eval Anomaly_Spike = if(Failed_Attempts > Spike_Threshold AND Failed_Attempts > 20, Failed_Attempts, null())
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.overlayFields">Spike_Threshold,Anomaly_Spike</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Failed_Attempts": #3b82f6, "Baseline_Mean": #10b981, "Spike_Threshold": #f59e0b, "Anomaly_Spike": #ef4444}</option>
+        <option name="charting.axisTitleX.text">Time Window</option>
+        <option name="charting.axisTitleY.text">Failed Attempts / 15m</option>
+        <drilldown>
+          <set token="drilldown_earliest">$earliest$</set>
+          <set token="drilldown_latest">$latest$</set>
+        </drilldown>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <chart>
+        <title>Top Targeted Usernames (Valid Accounts vs. Invalid User Enumeration)</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | eval user_type = if(match(_raw, "invalid user"), "Invalid User (Spraying)", "Valid User (Targeted)")
+            | top limit=10 user by user_type
+            | fields user, count, user_type
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.axisTitleX.text">Attempts</option>
+        <option name="charting.axisTitleY.text">Username</option>
+      </chart>
+    </panel>
+    <panel>
+      <table>
+        <title>Top 10 Attacking Source IPs (Click IP to Filter Drilldown)</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$" user="$user_filter$"
+            | stats count as attempts, dc(user) as targeted_users, values(user) as sample_users by src_ip
+            | eventstats sum(attempts) as total_attempts
+            | eval pct_of_attacks = round((attempts/total_attempts)*100, 2) . "%"
+            | sort 10 - attempts
+            | fields src_ip, attempts, pct_of_attacks, targeted_users, sample_users
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">row</option>
+        <drilldown>
+          <set token="selected_attacker_ip">$row.src_ip$</set>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <table>
+        <title>Forensic Event Drilldown (Filtered by Selected Attacker: $selected_attacker_ip$)</title>
+        <search>
+          <query>
+            index=os_security sourcetype=linux_secure action=failure host="$selected_host$"
+            | eval attacker_filter = if(isnull("$selected_attacker_ip$") OR "$selected_attacker_ip$"="", "*", "$selected_attacker_ip$")
+            | search src_ip=attacker_filter
+            | eval classification = case(
+                match(_raw, "invalid user"), "CRITICAL - ENUMERATION",
+                match(_raw, "root"), "CRITICAL - PRIVILEGE_ATTACK",
+                true(), "HIGH - BRUTE_FORCE"
+              )
+            | table _time, classification, host, src_ip, user, _raw
+            | sort - _time
+            | head 100
+          </query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="count">15</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <format type="color" field="classification">
+          <colorPalette type="map">{"CRITICAL - PRIVILEGE_ATTACK":#ef4444,"CRITICAL - ENUMERATION":#f97316,"HIGH - BRUTE_FORCE":#eab308}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

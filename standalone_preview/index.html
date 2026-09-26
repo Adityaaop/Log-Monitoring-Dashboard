@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linux Auth Log Monitoring Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="dashboard-body">
+
+  <header class="navbar">
+    <div class="nav-left">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <span class="logo-title">Splunk Enterprise &bull; SOC Defense</span>
+          <span class="logo-subtitle">Linux Auth Log Surveillance &amp; Spike Detection</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="nav-right">
+      <div class="live-pill">
+        <span class="pulse-dot"></span>
+        <span>INDEXING: LIVE</span>
+      </div>
+      <button id="btnRefresh" class="btn btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span>Re-Query</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="dashboard-container">
+
+    <section class="filter-bar">
+      <div class="filter-group">
+        <label for="timeRangeSelect">Time Range</label>
+        <select id="timeRangeSelect" class="filter-input">
+          <option value="24h" selected>Last 24 Hours</option>
+          <option value="12h">Last 12 Hours</option>
+          <option value="6h">Last 6 Hours</option>
+          <option value="all">Full Ingested Log</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="hostSelect">Target Host</label>
+        <select id="hostSelect" class="filter-input">
+          <option value="*" selected>All Hosts (srv-prod-app01)</option>
+          <option value="srv-prod-app01">srv-prod-app01</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="userFilterInput">User Filter</label>
+        <input type="text" id="userFilterInput" class="filter-input" placeholder="e.g. root, admin, *" value="*">
+      </div>
+
+      <div class="filter-group">
+        <label for="spikeSensitivity">Spike Threshold Sensitivity</label>
+        <select id="spikeSensitivity" class="filter-input">
+          <option value="2.0">Strict (2.0 &sigma;)</option>
+          <option value="2.5" selected>Standard (2.5 &sigma;)</option>
+          <option value="3.0">Conservative (3.0 &sigma;)</option>
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button id="btnApplyFilter" class="btn btn-primary">Apply Filters</button>
+      </div>
+    </section>
+
+    <section id="alertBanner" class="alert-banner">
+      <div class="alert-banner-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <div class="alert-banner-content">
+        <div class="alert-banner-title">ANOMALOUS FAILED-LOGIN SPIKES DETECTED</div>
+        <div class="alert-banner-desc" id="alertBannerText">
+          2 major brute-force attack clusters identified in the last 24h exceeding 2.5 standard deviations above baseline.
+        </div>
+      </div>
+      <span class="badge badge-danger">CRITICAL THREAT</span>
+    </section>
+
+    <section class="kpi-grid">
+      <div class="kpi-card alert-border">
+        <div class="kpi-header">
+          <span class="kpi-title">TOTAL FAILED LOGINS</span>
+          <span class="kpi-tag alert-tag">+340% Spike</span>
+        </div>
+        <div class="kpi-value" id="kpiTotalFailed">4,812</div>
+        <div class="kpi-footer">
+          <span class="text-danger">&bull; High Anomaly</span> vs baseline ~28/hr
+        </div>
+      </div>
+
+      <div class="kpi-card warning-border">
+        <div class="kpi-header">
+          <span class="kpi-title">PEAK SPIKE RATE</span>
+          <span class="kpi-tag warning-tag">Burst Volume</span>
+        </div>
+        <div class="kpi-value" id="kpiPeakRate">318 <span class="kpi-unit">/15m</span></div>
+        <div class="kpi-footer">
+          Occurred at <strong>07:30 UTC</strong> (SSH Brute-force)
+        </div>
+      </div>
+
+      <div class="kpi-card info-border">
+        <div class="kpi-header">
+          <span class="kpi-title">DISTINCT ATTACKER IPS</span>
+          <span class="kpi-tag info-tag">Threat Actors</span>
+        </div>
+        <div class="kpi-value" id="kpiDistinctIps">6</div>
+        <div class="kpi-footer">
+          Primary source: <code id="kpiTopIp">185.220.101.5</code>
+        </div>
+      </div>
+
+      <div class="kpi-card purple-border">
+        <div class="kpi-header">
+          <span class="kpi-title">DICTIONARY ENUMERATION</span>
+          <span class="kpi-tag purple-tag">Spray Pattern</span>
+        </div>
+        <div class="kpi-value" id="kpiInvalidUserPct">61.4%</div>
+        <div class="kpi-footer">
+          Targeted non-existent system accounts
+        </div>
+      </div>
+    </section>
+
+    <section class="panels-grid">
+      <div class="dashboard-panel panel-full">
+        <div class="panel-header">
+          <div>
+            <h3 class="panel-title">Failed-Login Spikes Timeline (SPL Timechart + Baseline Anomaly Threshold)</h3>
+            <p class="panel-subtitle">Calculated via rolling moving average (&mu;) and dynamic 2.5 &sigma; threshold to detect brute-force spikes.</p>
+          </div>
+          <div class="panel-controls">
+            <span class="legend-pill" style="--dot-color: #38bdf8;">Failed Logins</span>
+            <span class="legend-pill" style="--dot-color: #10b981;">Baseline Mean (&mu;)</span>
+            <span class="legend-pill" style="--dot-color: #f59e0b;">Spike Threshold (&mu; + 2.5&sigma;)</span>
+            <span class="legend-pill" style="--dot-color: #ef4444;">Detected Spike Cluster</span>
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+
+      <div class="dashboard-panel">
+        <div class="panel-header">
+          <div>
+            <h3 class="panel-title">Targeted Accounts Analysis</h3>
+            <p class="panel-subtitle">Valid accounts (brute-force) vs. invalid users (enumeration spray)</p>
+          </div>
+        </div>
+        <div class="chart-wrapper-half">
+          <canvas id="userDistChart"></canvas>
+        </div>
+      </div>
+
+      <div class="dashboard-panel">
+        <div class="panel-header">
+          <div>
+            <h3 class="panel-title">Top Attacking Source IPs</h3>
+            <p class="panel-subtitle">Sorted by attempt volume. Click any IP to filter the raw log drilldown.</p>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="soc-table" id="attackerIpTable">
+            <thead>
+              <tr>
+                <th>Source IP</th>
+                <th>Country / ISP</th>
+                <th>Attempts</th>
+                <th>Attack Share</th>
+                <th>Primary Target</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="attackerTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-panel panel-full" style="margin-top: 20px;">
+      <div class="panel-header">
+        <div>
+          <h3 class="panel-title">Forensic Log Drilldown &bull; Raw Event Parser</h3>
+          <p class="panel-subtitle">Correlated SSHD and PAM authentication failure logs.</p>
+        </div>
+        <div id="drilldownFilterStatus" class="filter-indicator">
+          Showing all logs (Click an IP above to isolate)
+        </div>
+      </div>
+      <div class="log-stream-wrapper">
+        <table class="soc-table log-table">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Timestamp</th>
+              <th style="width: 160px;">Severity Tag</th>
+              <th style="width: 130px;">Source IP</th>
+              <th style="width: 110px;">Target User</th>
+              <th>Parsed Syslog Message</th>
+            </tr>
+          </thead>
+          <tbody id="logDrilldownBody">
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div>Linux Auth Log Monitoring &bull; Spike Detection Dashboard</div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+{
+  "visualizations": {
+    "viz_failed_timeline": {
+      "type": "splunk.area",
+      "options": {
+        "legendDisplay": "bottom",
+        "yAxisTitleText": "Failed Logins / 15m",
+        "xAxisTitleText": "Timeline",
+        "seriesColors": ["#38bdf8", "#10b981", "#f59e0b", "#ef4444"]
+      },
+      "dataSources": {
+        "primary": "ds_failed_timeline"
+      },
+      "title": "Failed-Login Spikes & Anomaly Baseline (Timechart)"
+    },
+    "viz_user_bar": {
+      "type": "splunk.bar",
+      "options": {
+        "legendDisplay": "right",
+        "xAxisTitleText": "Targeted User",
+        "yAxisTitleText": "Attempts",
+        "seriesColors": ["#38bdf8", "#c084fc"]
+      },
+      "dataSources": {
+        "primary": "ds_targeted_users"
+      },
+      "title": "Targeted Accounts: Valid vs Invalid (Enumeration)"
+    },
+    "viz_attacker_table": {
+      "type": "splunk.table",
+      "options": {
+        "count": 10
+      },
+      "dataSources": {
+        "primary": "ds_attacker_ips"
+      },
+      "title": "Top Offending Source IPs"
+    },
+    "viz_kpi_total": {
+      "type": "splunk.singlevalue",
+      "options": {
+        "majorColor": "#ef4444",
+        "underLabel": "Total Failed Logins"
+      },
+      "dataSources": {
+        "primary": "ds_kpi_total"
+      }
+    }
+  },
+  "dataSources": {
+    "ds_failed_timeline": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=os_security sourcetype=linux_secure action=failure | timechart span=15m count as Failed_Attempts | streamstats window=8 avg(Failed_Attempts) as Baseline_Mean, stdev(Failed_Attempts) as Baseline_Stdev | eval Spike_Threshold = round(Baseline_Mean + (2.5 * Baseline_Stdev), 1) | eval Anomaly_Spike = if(Failed_Attempts > Spike_Threshold AND Failed_Attempts > 20, Failed_Attempts, null())"
+      }
+    },
+    "ds_targeted_users": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=os_security sourcetype=linux_secure action=failure | eval user_type = if(match(_raw, \"invalid user\"), \"Invalid (Spray)\", \"Valid (Targeted)\") | top limit=10 user by user_type"
+      }
+    },
+    "ds_attacker_ips": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=os_security sourcetype=linux_secure action=failure | stats count as attempts, dc(user) as targeted_users by src_ip | sort 10 - attempts"
+      }
+    },
+    "ds_kpi_total": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=os_security sourcetype=linux_secure action=failure | stats count"
+      }
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {
+      "width": 1440,
+      "height": 960
+    },
+    "structure": [
+      {
+        "item": "viz_kpi_total",
+        "position": { "x": 0, "y": 0, "w": 4, "h": 2 }
+      },
+      {
+        "item": "viz_failed_timeline",
+        "position": { "x": 0, "y": 2, "w": 12, "h": 5 }
+      },
+      {
+        "item": "viz_user_bar",
+        "position": { "x": 0, "y": 7, "w": 6, "h": 4 }
+      },
+      {
+        "item": "viz_attacker_table",
+        "position": { "x": 6, "y": 7, "w": 6, "h": 4 }
+      }
+    ]
+  }
+}
