@@ -2,7 +2,7 @@
 
 A Splunk-based monitoring solution for detecting brute-force attacks and authentication anomalies across Linux systems (`/var/log/auth.log` and `/var/log/secure`).
 
-Instead of relying on static thresholds (which trigger false positives during busy shifts and miss low-volume off-hours attacks), this project implements a dynamic baseline detection model in SPL using moving averages and standard deviation to identify anomalous failure surges in real time.
+Instead of relying on static thresholds (which trigger false positives during busy shifts and miss low-volume off-hours attacks), this project implements a dynamic baseline detection model in SPL using moving averages and standard deviation to identify anomalous failure surge in real time.
 
 ---
 
